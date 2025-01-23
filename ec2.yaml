@@ -110,81 +110,87 @@ Resources:
       SubnetId: !Ref PublicSubnet1A
       RouteTableId: !Ref PublicRouteTable
 
-# Bastion Host EC2
-  BastionHost:
+# Application Load Balancer
+  MyLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Subnets:
+        - !Ref PublicSubnet1A
+        - !Ref PublicSubnet2B  
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
+
+# Target Group for ALB
+  MyTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      VpcId: !Ref MyVPC
+      Port: 80
+      Protocol: 'HTTP'
+      Targets:
+        - Id: !Ref WebServerInstance1A
+        - Id: !Ref WebServerInstance2B 
+
+# Listener for ALB
+  MyListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref MyTargetGroup
+      LoadBalancerArn: !Ref MyLoadBalancer
+      Port: 80
+      Protocol: 'HTTP'
+
+# Web Server / ALB Security Group
+  WebServerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Enable HTTP Access'
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '0.0.0.0/0'      
+
+# Web Server Instance 1A
+  WebServerInstance1A:
     Type: 'AWS::EC2::Instance'
     Properties:
-      InstanceType: t2.micro
-      KeyName: bastion
-      ImageId: ami-0cdd6d7420844683b
+      InstanceType: 't2.micro'
+      ImageId: 'ami-0cdd6d7420844683b'
       SubnetId: !Ref PublicSubnet1A
       SecurityGroupIds:
-      - !Ref BastionSG
+        - !Ref WebServerSecurityGroup
       Tags:
-      - Key: Name
-        Value: BastionHost
+        - Key: 'Name'
+          Value: 'WebServerInstance1A'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "Hello from My Web Server 1A" > /var/www/html/index.html
 
-# Bastion Security Group
-  BastionSG:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: 'Enable SSH Access'
-      VpcId: !Ref MyVPC
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: 176.88.94.168/32  
-# Appinstance1A
-  AppInstance1A:
+# Web Server Instance 2B
+  WebServerInstance2B:
     Type: 'AWS::EC2::Instance'
     Properties:
-      InstanceType: t2.micro
-      KeyName: bastion
-      ImageId: ami-0cdd6d7420844683b
-      SubnetId: !Ref AppPrivateSubnet1A
+      InstanceType: 't2.micro'
+      ImageId: 'ami-0cdd6d7420844683b'
+      SubnetId: !Ref PublicSubnet2B
       SecurityGroupIds:
-        - !Ref AppInstance1ASG
+        - !Ref WebServerSecurityGroup
       Tags:
-        - Key: Name
-          Value: App1   
-# Appinstance2B
-  AppInstance2B:
-    Type: 'AWS::EC2::Instance'
-    Properties:
-      InstanceType: t2.micro
-      KeyName: bastion
-      ImageId: ami-0cdd6d7420844683b
-      SubnetId: !Ref AppPrivateSubnet2B
-      SecurityGroupIds:
-        - !Ref AppInstance2BSG
-      Tags:
-        - Key: Name
-          Value: App2
-# SG App 1A
-  AppInstance1ASG:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: 'Allow SSH from Bastion'
-      VpcId: !Ref MyVPC
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        SourceSecurityGroupId: !Ref BastionSG
-# SG App 2B
-  AppInstance2BSG:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: 'Allow ICMP Ping from App1'
-      VpcId: !Ref MyVPC
-      SecurityGroupIngress:
-      - IpProtocol: icmp
-        FromPort: -1
-        ToPort: -1
-        SourceSecurityGroupId: !Ref AppInstance1ASG   
-
-
-
-
-          
+        - Key: 'Name'
+          Value: 'WebServerInstance2B'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "Hello from My Web Server 2B" > /var/www/html/index.html
+                             
